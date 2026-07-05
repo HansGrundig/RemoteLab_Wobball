@@ -9,10 +9,10 @@ constexpr uint32_t kNextionBaud = 115200;
 const int16_t MAX_WIDTH = 800; 
 const int16_t MAX_HEIGHT = 480;
 
-const int16_t WALL_LEFT = 33;
-const int16_t WALL_RIGHT = 769;
-const int16_t WALL_TOP = 57;
-const int16_t WALL_BOTTOM = 456;
+const int16_t WALL_LEFT = 10;
+const int16_t WALL_RIGHT = 793;
+const int16_t WALL_TOP = 26;
+const int16_t WALL_BOTTOM = 438;
 
 // ====================================================================
 // --- 2. NEXTION HELPER FUNCTIONS ---
@@ -43,10 +43,13 @@ void setup() {
     Serial1.begin(kNextionBaud);
     delay(1000);
 
-    Serial.println("Dynamic Laser & Landing Zone Ready!");
+    Serial.println("Simple Dynamic Laser Ready!");
     clearNextionGraphics();
 }
 
+// ====================================================================
+// --- 4. MAIN TRACKING LOOP ---
+// ====================================================================
 // ====================================================================
 // --- 4. MAIN TRACKING LOOP ---
 // ====================================================================
@@ -60,10 +63,9 @@ void loop() {
     static int16_t pathY[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     static uint32_t pathTime[10] = {0};
 
-    // Future Trail Memory Buffer (Increased to 15 to hold the ring)
+    // Future Trail (Red)
     static int16_t lastPredX[10];
     static int16_t lastPredY[10];
-    static uint8_t lastPredType[10]; // NEW: 0 = Solid Dot, 1 = Hollow Ring
     static uint8_t predCount = 0;
 
     static uint32_t lastTouchTime = 0;
@@ -104,7 +106,8 @@ void loop() {
             int16_t x = (static_cast<int16_t>(data[1]) << 8) | data[0];
             int16_t y = (static_cast<int16_t>(data[3]) << 8) | data[2];
 
-
+            lastTouchTime = millis();
+            screenHasGraphics = true;
 
             uint32_t currentTime = millis();
             uint32_t dt = currentTime - lastPointTime; 
@@ -114,8 +117,7 @@ void loop() {
             if (pathX[9] == -1 || abs(x - pathX[9]) > 1 || abs(y - pathY[9]) > 1) { 
                 
                 char cmd[64];
-                lastTouchTime = millis();
-                screenHasGraphics = true;
+
                 // --- A. DRAW PAST TRACKING ---
                 if (pathX[0] != -1) {
                     sprintf(cmd, "cirs %d,%d,6,65535", pathX[0], pathY[0]);
@@ -138,15 +140,9 @@ void loop() {
                 // --- B. DRAW FUTURE LASER (10Hz) ---
                 if (pathX[5] != -1 && (millis() - lastPredictionDrawTime > 100)) {
                     
-                    // 1. SMART ERASER: Erases dots and rings perfectly
+                    // 1. Erase old red dots
                     for (int i = 0; i < predCount; i++) {
-                        if (lastPredType[i] == 1) {
-                            // Erase the hollow ring (draw a white ring of radius 12 over it)
-                            sprintf(cmd, "cir %d,%d,45,65535", lastPredX[i], lastPredY[i]);
-                        } else {
-                            // Erase the standard solid red dot
-                            sprintf(cmd, "cirs %d,%d,5,65535", lastPredX[i], lastPredY[i]);
-                        }
+                        sprintf(cmd, "cirs %d,%d,5,65535", lastPredX[i], lastPredY[i]);
                         sendNextionCommand(cmd);
                     }
                     predCount = 0; 
@@ -160,8 +156,7 @@ void loop() {
                     float distance = sqrt((dx * dx) + (dy * dy));
                     float velocity_ms = distance / totalDt; 
 
-                    // 3. Lowered threshold to 0.005 so it predicts even when moving VERY slowly
-                    if (velocity_ms > 0.005) {
+                    if (velocity_ms > 0.1) {
                         float dX = dx / distance; 
                         float dY = dy / distance; 
                         
@@ -169,16 +164,16 @@ void loop() {
                         float gY = pathY[9]; 
 
                         // -----------------------------------------------------------------
-                        // --- THE TUNED VELOCITY MAPPING ---
-                        float dynamicStep = 10.0 + (velocity_ms * 20.0) + (velocity_ms * velocity_ms * 80.0);
-                        float currentStepSize = constrain(dynamicStep, 15.0, 180.0);
+                        // --- THE NON-LINEAR (QUADRATIC) VELOCITY MAPPING ---
+                        // Minimum distance is 5.0. It grows exponentially as velocity goes up!
+                        // (Adjust the '20.0' multiplier if you want it to stretch out faster)
+                        float dynamicStep = 5.0 + (velocity_ms * velocity_ms * 15.0);
                         
-                        // Dynamic dot count based on speed (Max 9 dots, Min 1 dot)
-                        int maxDots = constrain((int)(velocity_ms * 10.0), 1, 9);
+                        // Constrain it safely between 5px and 150px so it never glitches
+                        float currentStepSize = constrain(dynamicStep, 5.0, 150.0);
                         // -----------------------------------------------------------------
 
-                        int16_t lastDotX = pathX[9];
-                        int16_t lastDotY = pathY[9];
+                        int maxDots = 15;
 
                         // THE CHAIN-LINK LOOP
                         for (int i = 0; i < maxDots; i++) {
@@ -199,9 +194,11 @@ void loop() {
 
                             // --- PENALTY FOR HITTING A BORDER ---
                             if (bounced) {
-                                currentStepSize *= 0.60; 
-                                if (currentStepSize < 15.0) {
-                                    currentStepSize = 15.0; 
+                                currentStepSize *= 0.75; // Slash the distance between dots by 40% on impact!
+                                
+                                // Never let the dots stack completely on top of each other
+                                if (currentStepSize < 5.0) {
+                                    currentStepSize = 5.0; 
                                 }
                             }
 
@@ -209,33 +206,12 @@ void loop() {
                             int16_t drawX = constrain((int16_t)gX, 0, MAX_WIDTH - 1);
                             int16_t drawY = constrain((int16_t)gY, 0, MAX_HEIGHT - 1);
 
-                            // Draw the standard red dot
+                            // Draw the red dot
                             sprintf(cmd, "cirs %d,%d,2,63488", drawX, drawY);
                             sendNextionCommand(cmd);
 
                             lastPredX[predCount] = drawX;
                             lastPredY[predCount] = drawY;
-                            lastPredType[predCount] = 0; // 0 = Solid Dot
-                            predCount++;
-
-                            // Save the exact coordinates of this final dot
-                            lastDotX = drawX;
-                            lastDotY = drawY;
-                        }
-
-                        // -----------------------------------------------------------------
-                        // --- THE FINAL LANDING ZONE RING ---
-                        // If the marble is practically stopped (< 0.02 px/ms), draw the ring!
-                        // -----------------------------------------------------------------
-                        if (velocity_ms < 0.03) {
-                            
-                            // Draw an empty circle (radius 12) around the last predicted dot
-                            sprintf(cmd, "cir %d,%d,40,63488", lastDotX, lastDotY);
-                            sendNextionCommand(cmd);
-
-                            lastPredX[predCount] = lastDotX;
-                            lastPredY[predCount] = lastDotY;
-                            lastPredType[predCount] = 1; // 1 = Hollow Ring
                             predCount++;
                         }
                     }
