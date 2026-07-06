@@ -56,9 +56,7 @@ In diesem Versuch steuerst du eine Kugel auf einer Arduino-gesteuerten beweglich
 
 Verbunden sind Display und Arduino über die Pins **RX1** und **TX1**.
 
-<lia-keep>
-  <iframe src="./src/Schema.html" width="100%" height="650px" style="border:none; overflow:hidden;"></iframe>
-</lia-keep>
+<iframe src="./src/Schema.html" width="100%" height="650px" style="border:none; overflow:hidden;"></iframe>
 
 
 ## Aufgabe 1: Punkte auf dem Displays plotten
