@@ -1,21 +1,26 @@
 #include <Arduino.h>
+#include <Arduino_LSM6DS3.h> // Bibliothek für die Onboard-IMU
 
 constexpr uint32_t kMonitorBaud = 9600;
 constexpr uint32_t kNextionBaud = 115200; 
 
 // ====================================================================
-// --- 1. GLOBAL PHYSICAL CONSTANTS ---
+// --- 1. GLOBALE KONSTANTEN ---
 // ====================================================================
 const int16_t MAX_WIDTH = 800; 
 const int16_t MAX_HEIGHT = 480;
 
-const int16_t WALL_LEFT = 33;
-const int16_t WALL_RIGHT = 769;
-const int16_t WALL_TOP = 57;
-const int16_t WALL_BOTTOM = 456;
+const float WALL_LEFT = 33.0;
+const float WALL_RIGHT = 769.0;
+const float WALL_TOP = 57.0;
+const float WALL_BOTTOM = 456.0;
+
+// --- KALIBRIERUNG (Nur noch diese beiden Werte sind fest) ---
+const float GRAVITY_SCALE = 6500.0; // Wie stark sich 1G Neigung auf die Pixel-Beschleunigung auswirkt
+const float BOUNCE_FACTOR = 0.48;   // Energie, die nach dem Abprallen an der Wand übrig bleibt (75%)
 
 // ====================================================================
-// --- 2. NEXTION HELPER FUNCTIONS ---
+// --- 2. HILFSFUNKTIONEN & STRUKTUREN ---
 // ====================================================================
 void sendNextionCommand(const char *command) {
     Serial1.print(command);
@@ -26,63 +31,211 @@ void sendNextionCommand(const char *command) {
 
 void clearNextionGraphics() {
     sendNextionCommand("ref 0"); 
-    Serial.println("Screen graphics wiped.");
+}
+
+struct PointData {
+    int16_t x;
+    int16_t y;
+    uint32_t t;
+};
+
+// ====================================================================
+// --- 3. DIE HYBRIDE PHYSIK-ENGINE (LIVE REIBUNG + IMU KURVEN) ---
+// ====================================================================
+void predictFullTrajectory(PointData points[20]) {
+    char cmd[64];
+
+    // ---------------------------------------------------------
+    // SCHRITT A: Live-Reibung aus den 20 Punkten berechnen
+    // ---------------------------------------------------------
+    float v[4];
+    float t_mid[4];
+
+    // Wir teilen die 20 Punkte in 4 Blöcke und messen die Geschwindigkeit
+    for (int i = 0; i < 4; i++) {
+        int idx1 = i * 5;
+        int idx2 = (i == 3) ? 19 : idx1 + 5;
+        
+        float stepX = points[idx2].x - points[idx1].x;
+        float stepY = points[idx2].y - points[idx1].y;
+        float dt_step = (points[idx2].t - points[idx1].t) / 1000.0;
+        if (dt_step < 0.001) dt_step = 0.001; 
+        
+        float stepDist = sqrt(stepX*stepX + stepY*stepY);
+        v[i] = stepDist / dt_step;
+        t_mid[i] = (points[idx1].t + points[idx2].t) / 2000.0; 
+    }
+
+    // Geschwindigkeiten mitteln (Erste Hälfte vs. Zweite Hälfte)
+    float v_start = (v[0] + v[1]) / 2.0;
+    float v_end = (v[2] + v[3]) / 2.0;
+    float t_diff = ((t_mid[2] + t_mid[3]) / 2.0) - ((t_mid[0] + t_mid[1]) / 2.0);
+
+    // Negative Beschleunigung (Reibung) berechnen
+    float acceleration = (v_end - v_start) / (t_diff > 0.001 ? t_diff : 0.001); 
+    float live_friction = -acceleration; 
+    
+    // Fallback: Wenn die Reibung durch Rauschen unlogisch ist, nehmen wir einen Standardwert
+    if (live_friction < 20.0) live_friction = 100.0; 
+
+    Serial.print("Live gemessene Reibung: "); Serial.println(live_friction);
+
+
+    // ---------------------------------------------------------
+    // SCHRITT B: Start-Vektor für die Simulation festlegen
+    // ---------------------------------------------------------
+    // Wir nutzen das letzte Viertel (Punkte 15-19) für den exakten "Abwurfwinkel"
+    float dt_end = (points[19].t - points[15].t) / 1000.0;
+    if (dt_end < 0.001) dt_end = 0.001;
+    
+    float vx = (points[19].x - points[15].x) / dt_end;
+    float vy = (points[19].y - points[15].y) / dt_end;
+
+
+    // ---------------------------------------------------------
+    // SCHRITT C: IMU Schwerkraft auslesen
+    // ---------------------------------------------------------
+    float ax_g = 0, ay_g = 0, az_g = 0;
+    if (IMU.accelerationAvailable()) {
+        IMU.readAcceleration(ax_g, ay_g, az_g);
+    }
+    
+    // ACHTUNG: Hier ggf. die Vorzeichen anpassen, je nachdem wie der Arduino aufgeklebt ist!
+    float gx = -ay_g * GRAVITY_SCALE; 
+    float gy = -ax_g * GRAVITY_SCALE; 
+    
+    Serial.print("Gravitation X: "); Serial.print(gx);
+    Serial.print(" | Y: "); Serial.println(gy);
+
+
+    // ---------------------------------------------------------
+    // SCHRITT D: Euler-Physik-Simulation (Kurven & Bounces)
+    // ---------------------------------------------------------
+    float simX = points[19].x;
+    float simY = points[19].y;
+    float lastDrawX = simX;
+    float lastDrawY = simY;
+
+    float dt = 0.02;         // 20ms pro Simulationsschritt
+    int max_steps = 400;     // Maximal 8 Sekunden in die Zukunft
+
+    for (int step = 0; step < max_steps; step++) {
+        
+        // 1. Schwerkraft anwenden
+        vx += gx * dt;
+        vy += gy * dt;
+        
+        // 2. Live-Reibung abziehen (wirkt exakt entgegen der Flugrichtung)
+        float current_speed = sqrt(vx*vx + vy*vy);
+        float speed_drop = live_friction * dt;
+        
+        if (current_speed > 0) {
+            if (current_speed < speed_drop) {
+                vx = 0; vy = 0; current_speed = 0; // Kugel hält an
+            } else {
+                float multiplier = (current_speed - speed_drop) / current_speed;
+                vx *= multiplier;
+                vy *= multiplier;
+            }
+        }
+        
+        // 3. Überprüfen: Steht die Kugel still und die Schwerkraft ist zu schwach zum Losrollen?
+        float gravity_magnitude = sqrt(gx*gx + gy*gy);
+        if (current_speed == 0 && gravity_magnitude <= live_friction) {
+            break; // Simulation beendet!
+        }
+        
+        // 4. Position updaten
+        simX += vx * dt;
+        simY += vy * dt;
+        
+        // 5. Banden-Kollision (Bounce)
+        if (simX <= WALL_LEFT)   { simX = WALL_LEFT;   vx = -vx * BOUNCE_FACTOR; }
+        if (simX >= WALL_RIGHT)  { simX = WALL_RIGHT;  vx = -vx * BOUNCE_FACTOR; }
+        if (simY <= WALL_TOP)    { simY = WALL_TOP;    vy = -vy * BOUNCE_FACTOR; }
+        if (simY >= WALL_BOTTOM) { simY = WALL_BOTTOM; vy = -vy * BOUNCE_FACTOR; }
+        
+        // 6. Zeichnen (Jeden 3. Schritt, damit der Buffer nicht überläuft)
+        if (step % 3 == 0) {
+            sprintf(cmd, "line %d,%d,%d,%d,33840", (int)lastDrawX, (int)lastDrawY, (int)simX, (int)simY);
+            sendNextionCommand(cmd);
+            lastDrawX = simX;
+            lastDrawY = simY;
+        }
+    }
+
+    // Lücke schließen und Zielfadenkreuz zeichnen
+    sprintf(cmd, "line %d,%d,%d,%d,64512", (int)lastDrawX, (int)lastDrawY, (int)simX, (int)simY);
+    sendNextionCommand(cmd);
+    
+    sprintf(cmd, "cir %d,%d,15,63488", (int)simX, (int)simY);
+    sendNextionCommand(cmd);
+    sprintf(cmd, "line %d,%d,%d,%d,63488", (int)simX-5, (int)simY, (int)simX+5, (int)simY);
+    sendNextionCommand(cmd);
+    sprintf(cmd, "line %d,%d,%d,%d,63488", (int)simX, (int)simY-5, (int)simX, (int)simY+5);
+    sendNextionCommand(cmd);
 }
 
 // ====================================================================
-// --- 3. ARDUINO SETUP ---
+// --- 4. ARDUINO SETUP ---
 // ====================================================================
 void setup() {
     Serial.begin(kMonitorBaud);
+    
+    if (!IMU.begin()) {
+        Serial.println("Fehler: IMU Sensor nicht gefunden!");
+        while (1);
+    }
+
     Serial1.begin(9600);
     delay(500);
-    
     sendNextionCommand("baud=115200"); 
     delay(100);
-    
     Serial1.begin(kNextionBaud);
     delay(1000);
 
-    Serial.println("Dynamic Laser & Landing Zone Ready!");
+    Serial.println("System Ready! Drücke 'p' im Serial Monitor, um die Aufnahme zu starten.");
     clearNextionGraphics();
 }
 
 // ====================================================================
-// --- 4. MAIN TRACKING LOOP ---
+// --- 5. MAIN LOOP ---
 // ====================================================================
 void loop() {
     static uint8_t state = 0;
     static uint8_t data[7]; 
     static uint8_t index = 0;
-    
-    // Past Trail (Blue)
-    static int16_t pathX[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-    static int16_t pathY[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
-    static uint32_t pathTime[10] = {0};
 
-    // Future Trail Memory Buffer (Increased to 15 to hold the ring)
-    static int16_t lastPredX[10];
-    static int16_t lastPredY[10];
-    static uint8_t lastPredType[10]; // NEW: 0 = Solid Dot, 1 = Hollow Ring
-    static uint8_t predCount = 0;
+    static PointData history[20];
+    static uint8_t histCount = 0;
+    static bool isRecording = false;       
 
-    static uint32_t lastTouchTime = 0;
-    static bool screenHasGraphics = false;
-    static uint32_t lastPointTime = 0; 
-    
-    static uint32_t lastPredictionDrawTime = 0;
+    static uint32_t lastMovementTime = 0;
+    static int16_t currentRealX = -1;
+    static int16_t currentRealY = -1;
+    static bool screenHasGraphics = false; 
 
-    // 5-SECOND SCREEN WIPE
-    if (screenHasGraphics && (millis() - lastTouchTime > 5000)) {
-        clearNextionGraphics();
-        predCount = 0;         
-        screenHasGraphics = false; 
-        
-        for(int i = 0; i < 10; i++) {
-            pathX[i] = -1; 
-            pathY[i] = -1;
-            pathTime[i] = 0;
+    // --- MANUELLE PRÄDIKTION ÜBER DEN SERIAL MONITOR ('p') ---
+    if (Serial.available() > 0) {
+        char incomingChar = Serial.read();
+        if (incomingChar == 'p' || incomingChar == 'P') {
+            if (screenHasGraphics) {
+                clearNextionGraphics();
+                screenHasGraphics = false;
+            }
+            isRecording = true;
+            histCount = 0;
+            lastMovementTime = millis();
+            Serial.println(">>> AUFNAHME SCHARF! Bewege die Kugel... <<<");
         }
+    }
+
+    if (screenHasGraphics && (millis() - lastMovementTime > 5000)) {
+        clearNextionGraphics();
+        screenHasGraphics = false; 
+        isRecording = false; 
+        histCount = 0;
+        Serial.println("Screen geputzt (5 Sekunden Inaktivität).");
     }
 
     while (Serial1.available()) {
@@ -104,143 +257,43 @@ void loop() {
             int16_t x = (static_cast<int16_t>(data[1]) << 8) | data[0];
             int16_t y = (static_cast<int16_t>(data[3]) << 8) | data[2];
 
-
-
-            uint32_t currentTime = millis();
-            uint32_t dt = currentTime - lastPointTime; 
-            lastPointTime = currentTime; 
-            if (dt == 0) dt = 1;
-            
-            if (pathX[9] == -1 || abs(x - pathX[9]) > 1 || abs(y - pathY[9]) > 1) { 
+            if (currentRealX == -1 || abs(x - currentRealX) > 2 || abs(y - currentRealY) > 2) {
+                lastMovementTime = millis(); 
+                currentRealX = x;
+                currentRealY = y;
                 
-                char cmd[64];
-                lastTouchTime = millis();
-                screenHasGraphics = true;
-                // --- A. DRAW PAST TRACKING ---
-                if (pathX[0] != -1) {
-                    sprintf(cmd, "cirs %d,%d,6,65535", pathX[0], pathY[0]);
-                    sendNextionCommand(cmd);
-                }
-
-                for (int i = 0; i < 9; i++) {
-                    pathX[i] = pathX[i+1];
-                    pathY[i] = pathY[i+1];
-                    pathTime[i] = pathTime[i+1]; 
-                }
-                
-                pathX[9] = x;
-                pathY[9] = y;
-                pathTime[9] = millis();
-
-                sprintf(cmd, "cirs %d,%d,3,31", x, y);
-                sendNextionCommand(cmd);
-
-                // --- B. DRAW FUTURE LASER (10Hz) ---
-                if (pathX[5] != -1 && (millis() - lastPredictionDrawTime > 100)) {
+                if (isRecording && histCount < 20) {
                     
-                    // 1. SMART ERASER: Erases dots and rings perfectly
-                    for (int i = 0; i < predCount; i++) {
-                        if (lastPredType[i] == 1) {
-                            // Erase the hollow ring (draw a white ring of radius 12 over it)
-                            sprintf(cmd, "cir %d,%d,45,65535", lastPredX[i], lastPredY[i]);
-                        } else {
-                            // Erase the standard solid red dot
-                            sprintf(cmd, "cirs %d,%d,5,65535", lastPredX[i], lastPredY[i]);
-                        }
-                        sendNextionCommand(cmd);
-                    }
-                    predCount = 0; 
-                    
-                    // 2. Measure velocity
-                    int32_t dx = pathX[9] - pathX[5];
-                    int32_t dy = pathY[9] - pathY[5];
-                    uint32_t totalDt = pathTime[9] - pathTime[5];
-                    if (totalDt == 0) totalDt = 1; 
-
-                    float distance = sqrt((dx * dx) + (dy * dy));
-                    float velocity_ms = distance / totalDt; 
-
-                    // 3. Lowered threshold to 0.005 so it predicts even when moving VERY slowly
-                    if (velocity_ms > 0.005) {
-                        float dX = dx / distance; 
-                        float dY = dy / distance; 
+                    // Banden-Schutz: Wenn die Kugel an der Wand klebt, stoppen wir die Aufnahme
+                    if (x <= WALL_LEFT + 8 || x >= WALL_RIGHT - 8 || 
+                        y <= WALL_TOP + 8 || y >= WALL_BOTTOM - 8) {
                         
-                        float gX = pathX[9]; 
-                        float gY = pathY[9]; 
-
-                        // -----------------------------------------------------------------
-                        // --- THE TUNED VELOCITY MAPPING ---
-                        float dynamicStep = 10.0 + (velocity_ms * 20.0) + (velocity_ms * velocity_ms * 80.0);
-                        float currentStepSize = constrain(dynamicStep, 15.0, 180.0);
-                        
-                        // Dynamic dot count based on speed (Max 9 dots, Min 1 dot)
-                        int maxDots = constrain((int)(velocity_ms * 10.0), 1, 9);
-                        // -----------------------------------------------------------------
-
-                        int16_t lastDotX = pathX[9];
-                        int16_t lastDotY = pathY[9];
-
-                        // THE CHAIN-LINK LOOP
-                        for (int i = 0; i < maxDots; i++) {
-                            
-                            gX += (dX * currentStepSize);
-                            gY += (dY * currentStepSize);
-
-                            bool bounced = false;
-
-                            // Fold space if it hits a wall
-                            while (gX < WALL_LEFT || gX > WALL_RIGHT || gY < WALL_TOP || gY > WALL_BOTTOM) {
-                                if (gX > WALL_RIGHT) { gX = WALL_RIGHT - (gX - WALL_RIGHT); dX = -dX; bounced = true; }
-                                else if (gX < WALL_LEFT) { gX = WALL_LEFT + (WALL_LEFT - gX); dX = -dX; bounced = true; }
-                                
-                                if (gY > WALL_BOTTOM) { gY = WALL_BOTTOM - (gY - WALL_BOTTOM); dY = -dY; bounced = true; }
-                                else if (gY < WALL_TOP) { gY = WALL_TOP + (WALL_TOP - gY); dY = -dY; bounced = true; }
-                            }
-
-                            // --- PENALTY FOR HITTING A BORDER ---
-                            if (bounced) {
-                                currentStepSize *= 0.60; 
-                                if (currentStepSize < 15.0) {
-                                    currentStepSize = 15.0; 
-                                }
-                            }
-
-                            // Constrain as a final safety net
-                            int16_t drawX = constrain((int16_t)gX, 0, MAX_WIDTH - 1);
-                            int16_t drawY = constrain((int16_t)gY, 0, MAX_HEIGHT - 1);
-
-                            // Draw the standard red dot
-                            sprintf(cmd, "cirs %d,%d,2,63488", drawX, drawY);
-                            sendNextionCommand(cmd);
-
-                            lastPredX[predCount] = drawX;
-                            lastPredY[predCount] = drawY;
-                            lastPredType[predCount] = 0; // 0 = Solid Dot
-                            predCount++;
-
-                            // Save the exact coordinates of this final dot
-                            lastDotX = drawX;
-                            lastDotY = drawY;
+                        if (histCount > 0) {
+                            Serial.println("Wand-Kollision detektiert! Verwerfe Daten...");
+                            histCount = 0; 
                         }
-
-                        // -----------------------------------------------------------------
-                        // --- THE FINAL LANDING ZONE RING ---
-                        // If the marble is practically stopped (< 0.02 px/ms), draw the ring!
-                        // -----------------------------------------------------------------
-                        if (velocity_ms < 0.03) {
-                            
-                            // Draw an empty circle (radius 12) around the last predicted dot
-                            sprintf(cmd, "cir %d,%d,40,63488", lastDotX, lastDotY);
+                    } else {
+                        history[histCount].x = x;
+                        history[histCount].y = y;
+                        history[histCount].t = millis();
+                        
+                        if (histCount > 0) {
+                            char cmd[64];
+                            sprintf(cmd, "line %d,%d,%d,%d,65535", 
+                                    history[histCount-1].x, history[histCount-1].y, x, y);
                             sendNextionCommand(cmd);
+                            screenHasGraphics = true;
+                        }
+                        
+                        histCount++;
 
-                            lastPredX[predCount] = lastDotX;
-                            lastPredY[predCount] = lastDotY;
-                            lastPredType[predCount] = 1; // 1 = Hollow Ring
-                            predCount++;
+                        if (histCount == 20) {
+                            isRecording = false; 
+                            Serial.println("20 saubere Punkte erfasst. Starte IMU Physik-Simulation...");
+                            predictFullTrajectory(history);
+                            screenHasGraphics = true;
                         }
                     }
-
-                    lastPredictionDrawTime = millis();
                 }
             }
         }
