@@ -15,18 +15,23 @@ repository: https://github.com/HansGrundig/RemoteLab_Wabball
 
 import: https://raw.githubusercontent.com/liaTemplates/AVR8js/main/README.md
 
-icon:  https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wabball/.img/Logo.png
+icon: https://tu-freiberg.de/sites/default/files/styles/crop_landscape_1300/public/2023-08/Bild2.png
 -->
 
 # RemoteLab Wobball
-> Herzlich Willkommen zu dem RemoteLab Wabball! 
+
+[![LiaScript](https://raw.githubusercontent.com/LiaScript/LiaScript/master/badges/course.svg)](https://liascript.github.io/course/?https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wobball/master/Edrys_Aufgaben/Aufgabenstellung.md#1)
+
+> Herzlich Willkommen zu dem RemoteLab Wobball! 
 
 Stell dir einen smarten Billardtisch vor, der die Bewegung der Kugel präzise verfolgt und sogar die zukünftige Position vorhersagt.  
 Genau das bildet dieses RemoteLab nach: Schritt für Schritt lernst du, wie ein solches System Punkte visualisiert, die Kugelposition ausliest, die Spur aufzeichnet, Geschwindigkeit und Richtung bestimmt und schließlich eine Vorhersage trifft.
 
 In diesem Versuch steuerst du eine Kugel auf einer Arduino-gesteuerten beweglichen Plattform. Die Kugel liegt auf einem Display und ihre Position können über die bereitgestellte API ausgelesen werden.
 
-![Smartes Billard](../.img/SmartBilliard_V2.png) 
+![Smartes Billard ](../.img/SmartBilliard_V2.png  "[^1]")<!--style="display: block; margin-left: auto; margin-right: auto;"-->
+
+[^1]: Mit Google Gemini generiert.
 
 ## Aufgabenüberblick
 1. Punkte auf dem Display plotten ([Direktlink](#Aufgabe-1:-Punkte-auf-dem-Displays-plotten))
@@ -40,7 +45,12 @@ In diesem Versuch steuerst du eine Kugel auf einer Arduino-gesteuerten beweglich
 >oder die vorherige Musterlösungen zu übernehmen.
 
 <lia-keep>
-    <div class="sketchfab-embed-wrapper"> <iframe title="Assembly 2" frameborder="0" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" xr-spatial-tracking execution-while-out-of-viewport execution-while-not-rendered web-share src="https://sketchfab.com/models/eefa3e5be18f49cb83b119f35c004882/embed?autospin=1"> </iframe> <p style="font-size: 13px; font-weight: normal; margin: 5px; color: #4A4A4A;"> <a href="https://sketchfab.com/3d-models/assembly-2-eefa3e5be18f49cb83b119f35c004882?utm_medium=embed&utm_campaign=share-popup&utm_content=eefa3e5be18f49cb83b119f35c004882" target="_blank" rel="nofollow" style="font-weight: bold; color: #1CAAD9;"> Assembly 2 </a> by <a href="https://sketchfab.com/HansGru?utm_medium=embed&utm_campaign=share-popup&utm_content=eefa3e5be18f49cb83b119f35c004882" target="_blank" rel="nofollow" style="font-weight: bold; color: #1CAAD9;"> HansGru </a> on <a href="https://sketchfab.com?utm_medium=embed&utm_campaign=share-popup&utm_content=eefa3e5be18f49cb83b119f35c004882" target="_blank" rel="nofollow" style="font-weight: bold; color: #1CAAD9;">Sketchfab</a></p></div>
+    <div class="sketchfab-embed-wrapper" style="display: flex; flex-direction: column; align-items: center; margin: 20px auto; width: 100%; max-width: 800px;"> 
+        <iframe title="Wobball 3D Modell" style="width: 100%; height: 500px; border: none; border-radius: 8px;" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking" xr-spatial-tracking execution-while-out-of-viewport execution-while-not-rendered web-share src="https://sketchfab.com/models/eefa3e5be18f49cb83b119f35c004882/embed?autospin=1"> </iframe> 
+        <p style="font-size: 13px; font-weight: normal; margin: 10px 0 5px 0; color: #4A4A4A; text-align: center;"> 
+            <a href="https://sketchfab.com/3d-models/wobball-3d-modell-eefa3e5be18f49cb83b119f35c004882?utm_medium=embed&utm_campaign=share-popup&utm_content=eefa3e5be18f49cb83b119f35c004882" target="_blank" rel="nofollow" style="font-weight: bold; color: #1CAAD9;">Wobball 3D Modell</a> by Hans Grundig is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="nofollow" style="font-weight: bold; color: #1CAAD9;">CC Attribution</a>. 
+        </p> 
+    </div>
 </lia-keep>
 
 
@@ -90,11 +100,7 @@ Nutze dafür die Nextionbefehle.
 ### **Musterlösung**
 
 ```cpp 
-
-char cmd[64];
-sprintf(cmd, "cirs %d,%d,2,31", 400 , 240);     // 400,240 = Mitte des Displays
-sendNextionCommand(cmd);
-
+kommt noch
 ```
 --------------------
 --{{3}}--
@@ -157,36 +163,7 @@ weitere Informationen: [Resistiver Touchscreen](https://www.leifiphysik.de/elekt
 
 ```cpp 
 
-while (Serial1.available()) {
-    // Nächstes Byte aus dem Nextion-Stream lesen.
-    uint8_t b = static_cast<uint8_t>(Serial1.read());
-
-    // Auf das Startbyte der Positionsnachricht warten.
-    if (state == 0) {
-        if (b == 0x68) { 
-            // Neue Nachricht beginnt: Buffer zurücksetzen.
-            index = 0;
-            state = 1;
-        }
-        continue;
-    }
-
-    // Weitere Bytes der Nachricht im Puffer sammeln.
-    data[index++] = b;
-    if (index < 7) continue; 
-
-    // Eine vollständige Nachricht endet mit drei 0xFF-Bytes.
-    if (data[4] == 0xFF && data[5] == 0xFF && data[6] == 0xFF) {
-        // Zwei 8-Bit-Werte zu einem 16-Bit-X- und Y-Wert zusammensetzen.
-        int16_t x = (static_cast<int16_t>(data[1]) << 8) | data[0];
-        int16_t y = (static_cast<int16_t>(data[3]) << 8) | data[2];
-
-        Serial.print("x = ");
-        Serial.println(x);
-        Serial.print("y = ");
-        Serial.println(y);
-    }
-}
+kommt nocht
 
 ```
 
@@ -237,7 +214,7 @@ An dieser Stelle lernt der smarte Billardtisch, wie schnell und in welche Richtu
 
 ### Musterlösung
 ```cpp
-
+kommt noch
 ```
 
 ---
@@ -247,7 +224,7 @@ An dieser Stelle lernt der smarte Billardtisch, wie schnell und in welche Richtu
 Schreibe eine Funktion
 
 ```cpp
-predict(x, y, vel, dir)
+kommt  noch
 ```
 
 welche aus

@@ -1,26 +1,30 @@
 # Herzlich Willkommen zum RemoteLab Wobball 🎱
 
-[![LiaScript](https://raw.githubusercontent.com/LiaScript/LiaScript/master/badges/course.svg)](https://liascript.github.io/course/?https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wobball/master/README.md#1)
-
 *Ein Beitrag für die RemoteLab Challenge 2026*
 
 **Quick Links:**
 - 🖥️ [Zum Live RemoteLab (Edrys)](https://edrys-labs.github.io/?/classroom/HrUaacqz6fkaefx5/UjuQnhZ1Ngb4M45E)
-- 📝 [Interaktives Aufgabenblatt](./Edrys_Aufgaben/Aufgabenstellung.md)
+- 📝 [Interaktives Aufgabenblatt](https://liascript.github.io/course/?https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wobball/master/Edrys_Aufgaben/Aufgabenstellung.md#1)
 
 ---
 
 ## 📖 Einführung
-Stell dir einen smarten Billardtisch vor, der die Bewegung der Kugel präzise verfolgt und sogar die zukünftige Position vorhersagt! 
+Stell dir einen smarten Billardtisch vor, der die Bewegung der Kugel präzise verfolgt und sogar die zukünftige Position vorhersagt! Diese geniale Idee realisiert du in diesem RemoteLab.
 
-Im Rahmen der Veranstaltung *"Softwareentwicklung für eingebettete Systeme"* ist dieses RemoteLab entstanden. In fünf aufeinander aufbauenden Aufgaben werden die Grundlagen zur Kommunikation mit einem Nextion TFT Display, die Servosteuerung (inkl. inverser Kinematik) und das Auslesen von Sensorik (IMU) vermittelt. Während die Aufgaben 1 bis 4 schrittweise die technischen Grundlagen aufbauen, gipfelt das Projekt in Aufgabe 5: Hier werden Bewegungsmodelle genutzt, um die Trajektorie und die zukünftige Position einer rollenden Kugel auf der Plattform vorherzusagen.
+Im Rahmen der Veranstaltung *"Softwareentwicklung für eingebettete Systeme"* ist dieses RemoteLab entstanden. In fünf aufeinander aufbauenden Aufgaben werden die Grundlagen zur Kommunikation mit einem Nextion TFT Display, die Servosteuerung (inkl. inverser Kinematik) und das Auslesen von Sensorik (IMU) vermittelt. Während die Aufgaben 1 bis 4 schrittweise die technischen Grundlagen aufbauen, wird in Aufgabe 5 alle Funktionen kombiniert: Hier werden Bewegungsmodelle genutzt, um die Trajektorie und die zukünftige Position einer rollenden Kugel auf der Plattform vorherzusagen.
+Die Aufgaben sind so konzipiert, dass sie sowohl für Studierende der Informatik als auch für Schüler ab der 10. Klasse interessant sind. Die Aufgaben können vollständig remote bearbeitet werden und sind nach Schwierzgrad gestaffelt, sodass sie sowohl für Anfänger als auch für Fortgeschrittene geeignet sind.
 
 ## 🛠️ Technische Umsetzung & Hardware
-Das Projekt ermöglicht **Hardware-in-the-Loop (HIL)** Tests über das Internet. Folgende echte Hardwarekomponenten werden von den Studierenden ferngesteuert:
+Das Projekt ermöglicht echte Hardware Interaktion über die Edrys-Plattform. Folgende  Hardwarekomponenten werden von den Studierenden ferngesteuert:
 - **Mikrocontroller:** Arduino Uno WiFi Rev2 (ATmega328P)
 - **Display:** Nextion 5.0" TFT Touch Display (800x480 Pixel, UART-Anbindung, Resistiver Touchscreen für Positionserkennung)
 - **Sensorik:** MPU6050 (IMU) für präzise Lagedaten (I2C); 
 - **Aktorik:** 3x Servomotoren zur Steuerung der Wobball-Plattform
+
+## 🎯 Lernziele
+- Verständnis für die Kommunikation mit einem Nextion TFT Display
+- Grundlagen der Servosteuerung und inverse Kinematik
+- Auslesen von Sensorik (IMU) und Verarbeitung der Daten
 
 ---
 

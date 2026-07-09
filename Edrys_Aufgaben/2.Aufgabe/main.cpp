@@ -37,8 +37,6 @@ void loop() {
     static uint8_t data[7]; 
     static uint8_t index = 0;
     char cmd[64];
-    //sprintf(cmd, "cirs %d,%d,2,31", 400 , 240);     // 400,240 = Mitte des Displays
-    //sendNextionCommand(cmd);
     while (Serial1.available()) {
     // Nächstes Byte aus dem Nextion-Stream lesen.
     uint8_t b = static_cast<uint8_t>(Serial1.read());

@@ -41,14 +41,14 @@ void loop() {
     static uint8_t data[7]; 
     static uint8_t index = 0;
     
-    // THE SNAKE BUFFER (Holds the last 10 points)
-    // We initialize them to -1 so we know they are empty at the start
+    // SNAKE-PUFFER (enthält die letzten 10 Punkte)
+    // Initialisiert mit -1, damit leere Einträge erkennbar sind
     static int16_t pathX[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     static int16_t pathY[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     static uint32_t pathTime[10] = {0}; 
 
-    static int16_t lastpathX =-1;
-    static int16_t lastpathY =-1;
+    static int16_t lastpathX = -1;
+    static int16_t lastpathY = -1;
     static uint32_t lastTouchTime = 0;
     static bool screenHasGraphics = false;
 
@@ -59,7 +59,7 @@ void loop() {
     static uint32_t velocity = 0;
 
 
-    // 1. 5-SECOND WIPE: If no touches for 2 seconds, clear the screen and reset
+    // 1. 5-Sekunden-Reset: Wenn 5s keine Berührung, Bildschirm löschen und zurücksetzen
     if (screenHasGraphics && (millis() - lastTouchTime > 5000)) {
         clearNextionGraphics();   
         screenHasGraphics = false; 
@@ -71,7 +71,7 @@ void loop() {
         }
     }
 
-    // 2. LISTEN FOR CUSTOM NEXTION DATA
+    // 2. Auf benutzerdefinierte Nextion-Daten hören
     while (Serial1.available()) {
         uint8_t b = static_cast<uint8_t>(Serial1.read());
 
@@ -94,34 +94,34 @@ void loop() {
             lastTouchTime = millis();
             screenHasGraphics = true;
 
-            // --- DELTA TIME CALCULATION ---
+            // --- DELTA-ZEIT BERECHNUNG ---
             uint32_t currentTime = millis();
-            uint32_t dt = currentTime - lastPointTime; // 'dt' is the exact milliseconds between dots
-            lastPointTime = currentTime; // Save the time for the NEXT dot
+            uint32_t dt = currentTime - lastPointTime; // 'dt' ist die exakte Millisekunden zwischen Punkten
+            lastPointTime = currentTime; // Zeit für den NÄCHSTEN Punkt speichern
 
-            // Safety check: Prevent Arduino crash by dividing by zero if packets arrive instantly
+            // Sicherheitscheck: Vermeidet Division durch Null, falls Pakete sofort eintreffen
             if (dt == 0) dt = 1;
             
-            // Only update if the finger physically moved
+            // Nur aktualisieren, wenn sich die Berührungsposition geändert hat
             if (pathX[9] == -1 || abs(x - pathX[9]) > 2 || abs(y - pathY[9]) > 2) { 
                 
                 char cmd[64];
 
-                // --- STEP A: CLEANUP OLD GRAPHICS ---
-                // 1. Erase the oldest Green Tail dot (if the buffer is full)
+                // --- SCHRITT A: ALTE GRAFIK ENTFERNEN ---
+                // 1. Ältesten grünen Punkt löschen (falls Puffer voll)
                 if (pathX[0] != -1) {
                     sprintf(cmd, "cirs %d,%d,6,65535", pathX[0], pathY[0]);
                     sendNextionCommand(cmd);
                 }
 
-                // --- STEP B: SHIFT THE HISTORY ARRAY ---
+                // --- SCHRITT B: HISTORIE VERSCHIEBEN ---
                 for (int i = 0; i < 9; i++) {
                     pathX[i] = pathX[i+1];
                     pathY[i] = pathY[i+1];
                     pathTime[i] = pathTime[i+1]; 
                 }
                 
-                // --- STEP C: ADD NEW POINT & DRAW IT ---
+                // --- SCHRITT C: NEUEN PUNKT HINZUFÜGEN & ZEICHNEN ---
                 pathX[9] = x;
                 pathY[9] = y;
                 pathTime[9] = millis();
@@ -129,40 +129,40 @@ void loop() {
                 sprintf(cmd, "cirs %d,%d,3,31", x, y);
                 sendNextionCommand(cmd);
 
-                // --- STEP D: CALCULATE---
-                // Wait until we have at least 5 points in the buffer
+                // --- SCHRITT D: BERECHNUNGEN ---
+                // Warten, bis mindestens 5 Punkte im Puffer sind
                 if (pathX[5] != -1) {
                     
-                    // 1. Calculate the total delta over the last 5 points
+                    // 1. Gesamtdifferenz über die letzten 5 Punkte berechnen
                     int16_t dx = pathX[9] - pathX[5];
                     int16_t dy = pathY[9] - pathY[5];
 
-                    // 2. Calculate EXACT Time over that same 5-point window
+                    // 2. Exakte Zeitspanne über dieses 5-Punkte-Fenster
                     uint32_t totalDt = pathTime[9] - pathTime[5];
-                    if (totalDt == 0) totalDt = 1; // Prevent divide-by-zero crashes
+                    if (totalDt == 0) totalDt = 1; // Vermeidet Division durch Null
 
-                    // 3. Calculate True Velocity
-                    // Use Pythagorean theorem to find the actual pixel distance traveled
+                    // 3. Geschwindigkeit berechnen
+                    // Pythagoras zur Berechnung der zurückgelegten Pixel-Distanz
                     float distance = sqrt((dx * dx) + (dy * dy));
 
-                    // Velocity in Pixels Per Second (Multiply by 1000 to convert ms to seconds)
+                    // Geschwindigkeit in Pixel pro Sekunde (ms -> s: *1000)
                     int16_t velocityPPS = (distance * 1000.0) / totalDt;
 
                     Serial.print("Velocity in PPS=");
                     Serial.println(velocityPPS);
 
-                    // 4. Calculate the direction in degrees
+                    // 4. Richtung in Grad berechnen
                     float angleRads = atan2(dx, -dy);
                     float direction = angleRads * 180.0 / PI;
 
-                    // Normalize to 0-360
+                    // Normalisieren auf 0-360
                     if (direction < 0) {
                         direction += 360.0;
                     }
                     Serial.print("Direction in Degree: ");
                     Serial.println(direction,3);
                     
-                    // Assuming you defined these variables earlier to track the base of the line!
+                    // Letzte Punkt-Koordinaten aktualisieren
                     lastpathX = pathX[9]; 
                     lastpathY = pathY[9]; 
                 }
