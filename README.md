@@ -1,5 +1,7 @@
 # Herzlich Willkommen zum RemoteLab Wobball 🎱
 
+[![LiaScript](https://raw.githubusercontent.com/LiaScript/LiaScript/master/badges/course.svg)](https://liascript.github.io/course/?https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wobball/master/README.md#1)
+
 *Ein Beitrag für die RemoteLab Challenge 2026*
 
 **Quick Links:**
