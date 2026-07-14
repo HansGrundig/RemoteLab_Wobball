@@ -20,8 +20,6 @@ icon: https://tu-freiberg.de/sites/default/files/styles/crop_landscape_1300/publ
 
 # RemoteLab Wobball
 
-[![LiaScript](https://raw.githubusercontent.com/LiaScript/LiaScript/master/badges/course.svg)](https://liascript.github.io/course/?https://raw.githubusercontent.com/HansGrundig/RemoteLab_Wobball/master/Edrys_Aufgaben/Aufgabenstellung.md#1)
-
 > Herzlich Willkommen zu dem RemoteLab Wobball! 
 
 Stell dir einen smarten Billardtisch vor, der die Bewegung der Kugel präzise verfolgt und sogar die zukünftige Position vorhersagt.  
@@ -69,7 +67,7 @@ Verbunden sind Display und Arduino über die Pins **RX1** und **TX1**.
 
 
 <lia-keep>
-    <iframe src="https://hansgrundig.github.io/RemoteLab_Wabball/src/Schema.html" width="100%" height="650px" style="border:none; overflow:hidden;"></iframe>
+    <iframe src="https://hansgrundig.github.io/RemoteLab_Wobball/src/Schema.html" width="100%" height="650px" style="border:none; overflow:hidden;"></iframe>
 </lia-keep >
 
 
