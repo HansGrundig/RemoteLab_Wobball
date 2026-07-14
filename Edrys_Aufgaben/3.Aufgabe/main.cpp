@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <NextionControl.h>
+#include <jiggle.h>
 
 constexpr uint32_t kMonitorBaud = 9600;
 constexpr uint32_t kNextionBaud = 115200; 
@@ -24,7 +25,7 @@ void setup() {
     delay(100);
     Serial1.begin(kNextionBaud);
     delay(1000);
-
+    initJiggle(9, 6, 5);
     clearNextionGraphics();
 }
 
@@ -68,6 +69,25 @@ void loop() {
         }
     }
 
+    if (Serial.available()) {
+        char input = Serial.read();
+        
+        if (input == 'j' || input == 'J') {
+            clearNextionGraphics();
+            screenHasGraphics = false; 
+            
+            for(int i = 0; i < 10; i++) {
+                pathX[i] = -1; 
+                pathY[i] = -1;
+            }
+
+            Serial.println("-> Fuehre Jiggle aus...");
+            jiggle(); 
+            Serial.println("-> Jiggle beendet.");
+            
+            while (Serial1.available()) Serial1.read();
+        }
+    }
     // 2. Auf benutzerdefinierte Nextion-Daten hören
     while (Serial1.available()) {
         uint8_t b = static_cast<uint8_t>(Serial1.read());

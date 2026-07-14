@@ -65,6 +65,7 @@ void loop() {
         Serial.println(x);
         Serial.print("y = ");
         Serial.println(y);
+        delay(100);
     }
 }
 }

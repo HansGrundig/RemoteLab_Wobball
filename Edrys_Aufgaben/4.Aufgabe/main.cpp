@@ -73,7 +73,28 @@ void loop() {
             pathY[i] = -1;
         }
     }
-    jiggle();
+
+    if (Serial.available()) {
+        char input = Serial.read();
+        
+        if (input == 'j' || input == 'J') {
+            clearNextionGraphics();
+            screenHasGraphics = false; 
+            
+            // Puffer leeren
+            for(int i = 0; i < 10; i++) {
+                pathX[i] = -1; 
+                pathY[i] = -1;
+            }
+
+            Serial.println("-> Fuehre Jiggle aus...");
+            jiggle(); 
+            Serial.println("-> Jiggle beendet.");
+            
+            // Empfangspuffer flushen
+            while (Serial1.available()) Serial1.read();
+        }
+    }
     
     // 2. Auf benutzerdefinierte Nextion-Daten hören
     while (Serial1.available()) {
