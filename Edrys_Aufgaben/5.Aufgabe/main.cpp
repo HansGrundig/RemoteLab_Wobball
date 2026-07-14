@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 #include <NextionControl.h>
 #include <MPU6050.h>
 #include <jiggle.h> 
