@@ -96,7 +96,7 @@ void jiggle(){
       servo0.write(pos[0]);
       servo1.write(pos[1]);
       servo2.write(pos[2]);
-      delay(125);
+      delay(50);
     }
     }
 }

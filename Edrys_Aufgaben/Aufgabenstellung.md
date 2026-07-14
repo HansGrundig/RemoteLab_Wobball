@@ -63,6 +63,13 @@ In diesem Versuch steuerst du eine Kugel auf einer Arduino-gesteuerten beweglich
   - Microcontroller: ATmega328P
   - weitere Informationen: [Arduino Uno Wifi Rev2](https://store.arduino.cc/products/arduino-uno-wifi-rev2)
 
+- 3x Feetech FS9225M Digital Servomotor:
+  - Drehwinkel: 270°
+  - weitere Informationen: [Feetech FS9225M](https://www.premium-modellbau.de/media/pdf/66/1c/1c/FS9225M-specs.pdf)
+
+- IMU: MPU6050 6-Achsen Gyroskop und Beschleunigungssensor:
+  - weitere Informationen: [MPU6050](https://www.invensense.com/products/motion-tracking/6-axis/mpu-6050/)
+
 Verbunden sind Display und Arduino über die Pins **RX1** und **TX1**.
 
 
@@ -177,8 +184,6 @@ Plotte kontinuierlich den zurückgelegten Pfad der Kugel.
 
 **Ziel:** Die Bewegung der Kugel als Spur darstellen.
 
-
-
 ### Musterlösung
 
 ```cpp
@@ -205,11 +210,6 @@ Richtung: 137.5°
 
 **Ziel:** Bewegungsdaten der Kugel auswerten.
 
-An dieser Stelle lernt der smarte Billardtisch, wie schnell und in welche Richtung sich die Kugel über das Spielfeld bewegt. Gib die Ergebnisse dazu über die serielle Schnittstelle (`Serial`) kontinuierlich aus:
-
-* Geschwindigkeit in **Pixel pro Sekunde (px/s)**
-* Bewegungsrichtung in **Grad (°)**
-
 ### Musterlösung
 ```cpp
 kommt noch
@@ -219,40 +219,27 @@ kommt noch
 
 ## Bonusaufgabe 5: Position vorhersagen
 
-Schreibe eine Funktion
+Schreibe eine Funktion, die unter Verwendung der aktuellen Position, Geschwindigkeit und Richtung die **stillstands Position** der Kugel berechnet. 
 
 ```cpp
 kommt  noch
 ```
-
-welche aus
-
-* aktueller X-Koordinate
-* aktueller Y-Koordinate
-* Geschwindigkeit (`vel`)
-* Richtung (`dir`)
-
-die erwartete Position der Kugel **eine Sekunde später** berechnet.
 
 >[!IMPORTANT] ❗ Anforderungorderungen:
 >1. Berechne die vorhergesagte Position.
 >2. Gib die vorhergesagten Koordinaten aus.
 >3. Zeichne zur Visualisierung einen Punkt an der vorhergesagten Position.
 
-### Beispiel
+**Beispiel**
 
 ```text
 Aktuelle Position: (100, 50)
 Geschwindigkeit: 20 px/s
 Richtung: 0°
 
-Vorhersage nach 1 s:
-(120, 50)
 ```
 
 **Ziel:** Einführung in Bewegungsmodelle und Vorhersage von Positionen.
-
-Zum Schluss wird der smarte Billardtisch vorausschauend und berechnet, wo die Kugel in einem Moment später auf dem Tisch liegen wird.
 
 ## Fazit
 

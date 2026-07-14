@@ -2,7 +2,7 @@
 #include <Wire.h>
 #include <NextionControl.h>
 #include <MPU6050.h>
-#include <jiggle.h> // Deine Bibliothek für die Servos
+#include <jiggle.h> 
 
 constexpr uint32_t kMonitorBaud = 9600;
 constexpr uint32_t kNextionBaud = 115200;
@@ -166,12 +166,28 @@ void loop() {
         char input = Serial.read();
         
         if (input == 'j' || input == 'J') {
+            clearNextionGraphics();
+            clearNextionGraphics();
+            
+            // --- NEU: Prädiktion und Aufnahme explizit stoppen ---
+            isRecording = false;       
+            screenHasGraphics = false; 
+            
+            // --- NEU: Puffer leeren, damit keine alten Punkte gezeichnet werden ---
+            for(int i = 0; i < 10; i++) {
+                pathX[i] = -1;  
+                pathY[i] = -1;
+            }
+
             Serial.println("-> Führe Jiggle aus...");
             jiggle(); 
-            Serial.println("-> Jiggle beendet.");
+            Serial.println("-> Jiggle beendet. Prädiktion gestoppt.");
             
             // Empfangspuffer flushen, damit Mülldaten vom Wackeln gelöscht werden
             while (Serial1.available()) Serial1.read();
+        }
+        else if (input == 'r' || input == 'R'){
+            clearNextionGraphics();
         }
         else if (input == 'p' || input == 'P') {
             Serial.println("-> Starte Aufzeichnung & Prädiktion!");

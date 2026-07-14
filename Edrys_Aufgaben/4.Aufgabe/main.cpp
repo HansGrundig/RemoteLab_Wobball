@@ -30,6 +30,9 @@ void setup() {
     Serial1.begin(kNextionBaud);
     delay(1000);
 
+    // Servos initialisieren
+    initJiggle(9, 6, 5);
+
     clearNextionGraphics();
 }
 
@@ -70,7 +73,8 @@ void loop() {
             pathY[i] = -1;
         }
     }
-
+    jiggle();
+    
     // 2. Auf benutzerdefinierte Nextion-Daten hören
     while (Serial1.available()) {
         uint8_t b = static_cast<uint8_t>(Serial1.read());
