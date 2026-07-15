@@ -1587,6 +1587,8 @@ void loop() {
         else if (input == 'p' || input == 'P') {
             Serial.println("-> Starte Aufzeichnung & Prädiktion!");
             
+            jiggle();
+
             // Puffer sicherheitshalber noch mal flushen
             while (Serial1.available()) Serial1.read();
             
@@ -1670,6 +1672,7 @@ void loop() {
                         lastPredictTime = millis();
                     }
                 }
+                isRecording= false;
             }
         }
         state = 0;
