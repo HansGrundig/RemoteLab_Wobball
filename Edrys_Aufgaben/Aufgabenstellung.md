@@ -1667,12 +1667,18 @@ void loop() {
                     sprintf(cmd, "cirs %d,%d,3,31", x, y);
                     sendNextionCommand(cmd);
                     
-                    if (pathX[0] != -1 && (millis() - lastPredictTime > 400)) {
-                        predict(pathX, pathY, pathTime);
-                        lastPredictTime = millis();
-                    }
-                }
-                isRecording= false;
+        if (pathX[0] != -1) {
+            // Distanz zwischen dem ältesten und neuesten Puffer-Punkt berechnen
+            int dx = abs(pathX[9] - pathX[0]);
+            int dy = abs(pathY[9] - pathY[0]);
+            
+                // Trigger: Kugel ist mind. 30 Pixel gerollt (hat eine echte Geschwindigkeit)
+            if (dx > 30 || dy > 30) {
+                predict(pathX, pathY, pathTime);
+                
+                // Aufnahme für exakt EINE saubere Vorhersage stoppen
+                isRecording = false; 
+                Serial.println("-> Einmalige Vorhersage berechnet!");
             }
         }
         state = 0;
