@@ -78,15 +78,17 @@ void loop() {
         // Zwei 8-Bit-Werte zu einem 16-Bit-X- und Y-Wert zusammensetzen.
         int16_t x = (static_cast<int16_t>(data[1]) << 8) | data[0];
         int16_t y = (static_cast<int16_t>(data[3]) << 8) | data[2];
-
+        static uint32_t lastPrintTime = 0;
 
         if (abs(x-lastx) > 2 || abs(x-lasty) > 2){
 
+        if (millis() - lastPrintTime >= 500) {
             Serial.print("x = ");
             Serial.println(x);
             Serial.print("y = ");
             Serial.println(y);
-
+            lastPrintTime = millis(); // Timer zurücksetzen
+        }
             lastx =x;
             lasty =y;
         }

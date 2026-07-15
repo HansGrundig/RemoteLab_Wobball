@@ -285,7 +285,6 @@ void setup() {
     delay(100);
     Serial1.begin(kNextionBaud);
     delay(1000);
-    initJiggle(9, 6, 5);
     Serial.println("System Ready!");
     Serial.println("-> Druecke 'j' zum Wackeln (Jiggle)");
     clearNextionGraphics();
@@ -338,15 +337,17 @@ void loop() {
         // Zwei 8-Bit-Werte zu einem 16-Bit-X- und Y-Wert zusammensetzen.
         int16_t x = (static_cast<int16_t>(data[1]) << 8) | data[0];
         int16_t y = (static_cast<int16_t>(data[3]) << 8) | data[2];
-
+        static uint32_t lastPrintTime = 0;
 
         if (abs(x-lastx) > 2 || abs(x-lasty) > 2){
 
+        if (millis() - lastPrintTime >= 500) {
             Serial.print("x = ");
             Serial.println(x);
             Serial.print("y = ");
             Serial.println(y);
-
+            lastPrintTime = millis(); // Timer zurücksetzen
+        }
             lastx =x;
             lasty =y;
         }
@@ -354,6 +355,7 @@ void loop() {
     }
 }
 }
+
 
 
 ```
@@ -859,8 +861,6 @@ void loop() {
                     // Geschwindigkeit in Pixel pro Sekunde (ms -> s: *1000)
                     int16_t velocityPPS = ....;
 
-                    Serial.print("Velocity in PPS=");
-                    Serial.println(velocityPPS);
 
                     // 4. Richtung in Grad berechnen
                     float angleRads = atan2(dx, -dy);
@@ -868,9 +868,9 @@ void loop() {
 
                     // Normalisieren auf 0-360
 
-
-                    Serial.print("Direction in Degree: ");
-                    Serial.println(direction,3);
+                    if (millis() - lastPrintTime >= 500) {
+                        ....// Gewschwindigkeit und Richtung auf dem Serial Monitor ausgeben
+                    }
                     
                     // Letzte Punkt-Koordinaten aktualisieren
                     lastpathX = pathX[9]; 
@@ -1064,9 +1064,8 @@ void loop() {
 
                     // Geschwindigkeit in Pixel pro Sekunde (ms -> s: *1000)
                     int16_t velocityPPS = (distance * 1000.0) / totalDt;
-
-                    Serial.print("Velocity in PPS=");
-                    Serial.println(velocityPPS);
+                    
+                    static uint32_t lastPrintTime = 0;
 
                     // 4. Richtung in Grad berechnen
                     float angleRads = atan2(dx, -dy);
@@ -1076,9 +1075,14 @@ void loop() {
                     if (direction < 0) {
                         direction += 360.0;
                     }
-                    Serial.print("Direction in Degree: ");
-                    Serial.println(direction,3);
-                    
+                    // Nur alle 500 ms auf dem Serial Monitor ausgeben
+                    if (millis() - lastPrintTime >= 500) {
+                        Serial.print("Velocity in PPS=");
+                        Serial.println(velocityPPS);
+                        Serial.print("Direction in Degree: ");
+                        Serial.println(direction,3);
+                        lastPrintTime = millis(); // Timer zurücksetzen
+                    }
                     // Letzte Punkt-Koordinaten aktualisieren
                     lastpathX = pathX[9]; 
                     lastpathY = pathY[9]; 
